@@ -1,1 +1,121 @@
  слоем, отрисовать представление
+
+
+Код на PyTorch для обучения многослойного автокодировщика с двумерным латентным слоем и отрисовки классов в латентном представлении автокодировщика:
+
+```
+import torch
+import torch.nn as nn
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+
+# Загрузка данных
+(x_train, y_train), (x_test, y_test) = torch.utils.data.DataLoader(torchvision.datasets.MNIST('./data', train=True, download=True, transform=torchvision.transforms.ToTensor()), batch_size=128), torch.utils.data.DataLoader(torchvision.datasets.MNIST('./data', train=False, download=True, transform=torchvision.transforms.ToTensor()), batch_size=128)
+
+# Создание модели автокодировщика
+class Autoencoder(nn.Module):
+    def __init__(self):
+        super(Autoencoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(784, 256),
+            nn.ReLU(True),
+            nn.Linear(256, 64),
+            nn.ReLU(True),
+            nn.Linear(64, 2)
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(2, 64),
+            nn.ReLU(True),
+            nn.Linear(64, 256),
+            nn.ReLU(True),
+            nn.Linear(256, 784),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
+        x = self.encoder(x)
+        x = self.decoder(x)
+        x = x.view(x.size(0), 1, 28, 28)
+        return x
+
+autoencoder = Autoencoder()
+
+# Компиляция модели
+criterion = nn.BCELoss()
+optimizer = torch.optim.Adam(autoencoder.parameters(), lr=0.001)
+
+# Обучение модели
+num_epochs = 50
+for epoch in range(num_epochs):
+    for data in x_train:
+        optimizer.zero_grad()
+        outputs = autoencoder(data)
+        loss = criterion(outputs, data)
+        loss.backward()
+        optimizer.step()
+
+# Получение латентного представления
+with torch.no_grad():
+    encoded_imgs = autoencoder.encoder(x_test.view(x_test.size(0), -1)).numpy()
+
+# Отрисовка классов в латентном представлении
+plt.figure(figsize=(8, 6))
+plt.scatter(encoded_imgs[:, 0], encoded_imgs[:, 1], c=y_test, cmap='jet')
+plt.colorbar()
+plt.show()
+
+# Сделать tSNE над 32-мерным латентным слоем и отрисовать представление
+class Autoencoder32(nn.Module):
+    def __init__(self):
+        super(Autoencoder32, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(784, 256),
+            nn.ReLU(True),
+            nn.Linear(256, 32)
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(32, 256),
+            nn.ReLU(True),
+            nn.Linear(256, 784),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
+        x = self.encoder(x)
+        x = self.decoder(x)
+        x = x.view(x.size(0), 1, 28, 28)
+        return x
+
+autoencoder32 = Autoencoder32()
+
+# Компиляция модели
+criterion = nn.BCELoss()
+optimizer = torch.optim.Adam(autoencoder32.parameters(), lr=0.001)
+
+# Обучение модели
+num_epochs = 50
+for epoch in range(num_epochs):
+    for data in x_train:
+        optimizer.zero_grad()
+        outputs = autoencoder32(data)
+        loss = criterion(outputs, data)
+        loss.backward()
+        optimizer.step()
+
+# Получение латентного представления
+with torch.no_grad():
+    encoded_imgs_32 = autoencoder32.encoder(x_test.view(x_test.size(0), -1)).numpy()
+
+# Применение tSNE
+tsne = TSNE(n_components=2, random_state=0)
+encoded_imgs_tsne = tsne.fit_transform(encoded_imgs_32)
+
+# Отрисовка представления
+plt.figure(figsize=(8, 6))
+plt.scatter(encoded_imgs_tsne[:, 0], encoded_imgs_tsne[:, 1], c=y_test, cmap='jet')
+plt.colorbar()
+plt.show()
+```
