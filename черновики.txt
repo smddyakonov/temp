@@ -119,3 +119,109 @@ plt.scatter(encoded_imgs_tsne[:, 0], encoded_imgs_tsne[:, 1], c=y_test, cmap='je
 plt.colorbar()
 plt.show()
 ```
+
+Code python with pytorch: Обучить шумный автокодировщик: Добавить ко входным данным нормальный шум; Сделать отражение части изображения; Отрисовать карты активаций нейронов первого слоя
+
+Код на PyTorch для обучения шумного автокодировщика с отражением части изображения и отрисовки карт активаций нейронов первого слоя:
+
+```
+import torch
+import torch.nn as nn
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Загрузка данных
+(x_train, y_train), (x_test, y_test) = torch.utils.data.DataLoader(torchvision.datasets.MNIST('./data', train=True, download=True, transform=torchvision.transforms.ToTensor()), batch_size=128), torch.utils.data.DataLoader(torchvision.datasets.MNIST('./data', train=False, download=True, transform=torchvision.transforms.ToTensor()), batch_size=128)
+
+# Добавление шума к входным данным
+noise_factor = 0.2
+x_train_noisy = x_train + noise_factor * torch.randn(x_train.shape)
+x_test_noisy = x_test + noise_factor * torch.randn(x_test.shape)
+x_train_noisy = torch.clamp(x_train_noisy, 0., 1.)
+x_test_noisy = torch.clamp(x_test_noisy, 0., 1.)
+
+# Создание модели автокодировщика
+class Autoencoder(nn.Module):
+    def __init__(self):
+        super(Autoencoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.decoder = nn.Sequential(
+            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
+
+autoencoder = Autoencoder()
+
+# Компиляция модели
+criterion = nn.BCELoss()
+optimizer = torch.optim.Adam(autoencoder.parameters(), lr=0.001)
+
+# Обучение модели
+num_epochs = 50
+for epoch in range(num_epochs):
+    for data in x_train_noisy:
+        optimizer.zero_grad()
+        outputs = autoencoder(data)
+        loss = criterion(outputs, data)
+        loss.backward()
+        optimizer.step()
+
+# Отражение части изображения
+x_test_reflect = torch.flip(x_test_noisy[:, :, :, :14], dims=[3])
+x_test_reflect = torch.cat((x_test_reflect, x_test_noisy[:, :, :, 14:]), dim=3)
+
+# Отрисовка карт активаций нейронов первого слоя
+class Encoder(nn.Module):
+    def __init__(self):
+        super(Encoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        return x
+
+encoder = Encoder()
+with torch.no_grad():
+    encoded_imgs = encoder(x_test_reflect).numpy()
+
+fig, axes = plt.subplots(nrows=4, ncols=8, figsize=(12, 6))
+for i, ax in enumerate(axes.flat):
+    ax.imshow(encoded_imgs[0][i], cmap='gray')
+    ax.axis('off')
+plt.show()
+```
+
